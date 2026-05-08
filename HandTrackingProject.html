@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hand Tracking Project</title>
+    <style>
+         #canvas {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: flex-start;
+            align-items: flex-start;
+            height: 100vh;
+            width: 300vh;
+            background: #1c1b1b;
+            color: #333;
+        }
+        .container {
+            text-align: start;
+            padding: 2rem ;
+            background: #2c2a2a44;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .bottom-right {
+            position: absolute;
+            right: 1.5rem;
+            bottom: 1.5rem;
+            margin: 0;
+            color: #ca2929;
+            font-size: 0.9rem;
+            text-shadow: #1c1b1b 1px 1px 2px;
+        }
+        h1 {
+            margin: 0 0 1rem;
+            font-size: 2.5rem;
+            color: aquamarine;
+            text-shadow: #1c1b1b 1px 1px 2px;
+        }
+        p {
+            margin: 0;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            color: #a8a6a6;
+            text-shadow: #1c1b1b 1px 1px 2px;
+        }
+        #finger-legend {
+            margin-top:22px; display:flex; flex-direction:column; gap:7px;
+        }
+        .finger-row {
+            display:flex; align-items:center; gap:10px; font-size:12px;
+            letter-spacing:1.7px; color:rgba(255, 255, 255, 0.989);
+            line-height: 20px;
+        }
+
+        .finger-dot {
+            width:8.5px; height:8.5px; border-radius:50%;
+            flex-shrink:0;
+        }
+        
+        .button{
+            font-family: 'Courier New', Courier, monospace;
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 1rem;
+            color: #fff;
+            background:rgba(255,180,60,0.05); color:rgba(255,180,60,0.7);
+            border: 1px solid rgba(255,180,60,0.3);
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .button:hover{
+            background: #1d1b1b; color: #fff;
+        }
+
+        #controls {
+            position:fixed; bottom:24px; left:32px; z-index:20;
+            pointer-events:all;
+        }
+
+        #status {
+        position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+        text-align:center; z-index:30; pointer-events:none;
+        }
+        #status-text { font-size:20px; letter-spacing:3px; color:rgba(255, 255, 255, 0.521); text-transform:uppercase; }
+        #status-sub  { font: size 15px;  letter-spacing:2px; color:rgb(255, 180, 60); margin-top:8px; }
+        #loading-bar-wrap { width:160px; height:1px; background:rgba(255,255,255,0.08); margin:14px auto 0; }
+        #loading-bar { height:1px; background:rgba(255,180,60,0.8); width:0%; transition:width 0.3s; }
+#video {
+  position: fixed; bottom: 1px; right: 18px;
+  width: 180px; height: 135px;
+  border-radius: 8px; opacity: 0.7;
+  transform: scaleX(-1); z-index: 5;
+}
+</style>
+</head>
+<body>
+    <video id="video" autoplay muted playsinline></video>
+    <div class="container">
+        <h1>Hand Trail Artist</h1>
+        <p>Paint with just your fingertips.</p>
+        <div class="finger-row"><div class="finger-dot" style="background-color: #ff4c4c;"></div> THUMB</div>
+        <div class="finger-row"><div class="finger-dot" style="background-color: #4cff4c;"></div> INDEX</div>
+        <div class="finger-row"><div class="finger-dot" style="background-color: #4c4cff;"></div> MIDDLE</div>
+        <div class="finger-row"><div class="finger-dot" style="background-color: #ffff4c;"></div> RING</div>
+        <div class="finger-row"><div class="finger-dot" style="background-color: #ff4cff;"></div> PINKY</div>
+        <div class="finger-row">MAKE A FIST TO CLEAR</div>
+    </div>
+    <div id="controls">
+     <button class="button" onclick="clearPaint()">CLEAR</button>
+    <button class="button" onclick="saveImage()">SAVE</button>
+</div>
+    <div id="status">
+        <div id="status-text">Loading MediaPipe...</div>
+        <div id="status-sub">Please allow camera access</div>
+        <div id="loading-bar-wrap"><div id="loading-bar"></div></div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<script>
+
+const paintCanvas = document.createElement('canvas');
+const paintCtx = paintCanvas.getContext('2d');
+const video = document.getElementById('video');
+
+const FINGER_TIPS =[4,8,12,16,20];
+const FINGERS= [
+    {name: 'THUMB', tip:4, mid:2, color: '#ff6b6b', isThumb:true},
+    {name: 'INDEX', tip:8, mid:6, color: '#ffd93d', isThumb:false},
+    {name: 'MIDDLE', tip:12, mid:10, color: '#6bcb77', isThumb:false},
+    {name: 'RING', tip:16, mid:14, color: '#4d96ff', isThumb:false},
+    {name: 'PINKY', tip:20, mid:18, color: '#ff6bff', isThumb: false},
+];
+const FINGER_COLORS = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff6bff'];
+
+let landmarks =null;
+let previousTips={};
+let wasFist =false;
+
+paintCanvas.style.position = 'fixed';
+paintCanvas.style.inset = '0';
+paintCanvas.width = window.innerWidth;
+paintCanvas.height = window.innerHeight;
+document.body.appendChild(paintCanvas); 
+
+// finger gestures --------------------------------------------
+function isFingerUp(){
+
+}
+
+//paint strokes function--------------------------------------------
+
+function paintStroke(x,y,px,py,color,size){
+    paintCtx.beginPath();
+    paintCtx.moveTo(px,py);
+    paintCtx.lineTo(x,y);
+    paintCtx.strokeStyle =color +'cc'; //'cc' = alpha value
+    paintCtx.lineWidth = size;
+    paintCtx.lineCap = 'round';
+    paintCtx.lineJoin ="round";
+    paintCtx.stroke();
+
+    //glow 
+    paintCtx.beginPath();
+    paintCtx.arc(x,y,size*1.2,0,Math.PI*2);
+    const gradient = paintCtx.createRadialGradient(x, y, 0, x, y, size * 2.5);
+    gradient.addColorStop(0,color+'44');//44 opacity at center of gradent
+    gradient.addColorStop(1,color+'00');// 0 opacity at edge of gradient
+    paintCtx.fillStyle =gradient;
+    paintCtx.fill();
+}
+
+function animate() {
+    requestAnimationFrame(animate); // keep looping
+
+    if (landmarks) {
+        const W = paintCanvas.width;
+        const H = paintCanvas.height;
+
+        FINGER_TIPS.forEach((tipIdx, i) => {
+            const lm    = landmarks[tipIdx];
+            const x     = (1 - lm.x) * W;
+            const y     = lm.y * H;
+            const color = FINGER_COLORS[i];
+
+            if (previousTips[tipIdx]) {
+                const { x: px, y: py } = previousTips[tipIdx];
+                const moved = Math.hypot(x - px, y - py);
+                if (moved > 2) {
+                    paintStroke(x, y, px, py, color, 3 + moved * 0.3);
+                }
+            }
+            previousTips[tipIdx] = { x, y };
+        });
+    }
+}
+animate();
+
+// other functions ----------------------------------------------------------
+function clearPaint(){
+    paintCtx.clearRect(0,0,paintCanvas.width,paintCanvas.height);
+}
+
+function saveImage(){
+    const merge = document.createElement('canvas');
+    merge.width = paintCanvas.width;
+    merge.height = paintCanvas.height;
+    const mCtx = merge.getContext('2d');
+    mCtx.fillStyle = '#0d0a0f';
+    mCtx.fillRect(0, 0, merge.width, merge.height);
+    mCtx.drawImage(paintCanvas, 0, 0);
+    const a = document.createElement('a');
+    a.download = 'my-art.png';
+    a.href = merge.toDataURL();
+    a.click();
+}
+
+// Mediapipe Setup ------------------------------------------------------
+
+document.getElementById('loading-bar').style.width = '30%';
+
+const hands = new Hands({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+});
+
+hands.setOptions({
+    maxNumHands: 2,
+    modelComplexity: 1,
+    minDetectionConfidence: 0.7,
+    minTrackingConfidence: 0.6
+});
+
+hands.onResults(results=>{
+    if(results.multiHandLandmarks && results.multiHandLandmarks.length>0 ){
+        landmarks =results.multiHandLandmarks[0];
+        document.getElementById('status').style.display = 'none';
+    }else{
+        landmarks =null;
+        previousTips={}; // reset position when hand lost
+    }
+});
+
+document.getElementById('loading-bar').style.width= '60%';
+
+const camera = new Camera(video,{
+onFrame: async() => {await hands.send({image:video});},
+width: 640, height: 480
+});
+
+camera.start().then(()=>{
+document.getElementById('loading-bar').style.width= '100%';
+setTimeout(()=>{
+document.getElementById('status-text').textContent = 'Show your hands';
+document.getElementById('status-sub').textContent = 'Each fingertips paints a different color';
+document.getElementById('loading-bar-wrap').style.display = 'none';
+},500);
+});
+
+</script>
+</body>
+</html>
