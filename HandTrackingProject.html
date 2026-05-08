@@ -152,9 +152,25 @@ paintCanvas.width = window.innerWidth;
 paintCanvas.height = window.innerHeight;
 document.body.appendChild(paintCanvas); 
 
-// finger gestures --------------------------------------------
-function isFingerUp(){
+// hand gestures detection --------------------------------------------
+function isFingerUp(landmarks,finger){
+    const tip = landmarks[finger.tip];
+    const mid = landmarks[finger.mid];
 
+    if(finger.isThumb){
+        return Math.abs(tip.x-mid.x)>0.08; // thumb is horizontal pointing
+    }else{
+        return tip.y<mid.y - 0.02 // other fingers point up
+    }
+}
+
+function isFist(landmarks){
+    for(let i=1;i<FINGERS.length; i++){
+        if(isFingerUp(landmarks,FINGERS[i])){
+            return false;
+        }
+    }
+    return true;
 }
 
 //paint strokes function--------------------------------------------
