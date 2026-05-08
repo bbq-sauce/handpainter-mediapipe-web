@@ -196,91 +196,89 @@ function paintStroke(x,y,px,py,color,size){
     paintCtx.fill();
 }
 
-function animate() {
-        requestAnimationFrame(animate);
-
-        if (!landmarks) return; 
-
-        const W = paintCanvas.width;
-        const H = paintCanvas.height;
-
-
-        const fistNow = isFist(landmarks);
-        if (fistNow) {
-             if (fistStartTime === null) {
-                fistStartTime = Date.now();
-            } else if (Date.now() - fistStartTime > FIST_HOLD_MS) {
-                clearPaint();
-                flashFist();
-                fistStartTime = null; 
-            }
-            updateLegend([]);
-            return;
-        } else {
-            fistStartTime = null; 
-        }
-
-        const activeFingers = []; 
-
-        FINGERS.forEach((finger, i) => {
-            const up = isFingerUp(landmarks, finger);
-
-            if (up) {
-                activeFingers.push(i);
-
-                const tip = landmarks[finger.tip];
-                // Mirror X (1 - tip.x) because webcam is flipped
-                const x = (1 - tip.x) * W;
-                const y = tip.y * H;
-
-                if (previousTips[finger.tip]) {
-                    const { x: px, y: py } = previousTips[finger.tip];
-                    const moved = Math.hypot(x - px, y - py);
-
-                    // Only draw if finger actually moved
-                    if (moved > 2) {
-                        const brushSize = 3 + moved * 0.3;
-                        paintStroke(x, y, px, py, finger.color, brushSize);
-                    }
-                }
-
-                // Save position for next frame
-                previousTips[finger.tip] = { x, y };
-
-            } else {
-                // Finger is down — delete its previous position
-                // This prevents a "snap line" when the finger comes back up
-                delete previousTips[finger.tip];
-            }
-        });
-    }
-    animate();
-
 // function animate() {
-//     requestAnimationFrame(animate); // keep looping
+//         requestAnimationFrame(animate);
 
-//     if (landmarks) {
+//         if (!landmarks) return; 
+
 //         const W = paintCanvas.width;
 //         const H = paintCanvas.height;
 
-//         FINGER_TIPS.forEach((tipIdx, i) => {
-//             const lm    = landmarks[tipIdx];
-//             const x     = (1 - lm.x) * W;
-//             const y     = lm.y * H;
-//             const color = FINGER_COLORS[i];
 
-//             if (previousTips[tipIdx]) {
-//                 const { x: px, y: py } = previousTips[tipIdx];
-//                 const moved = Math.hypot(x - px, y - py);
-//                 if (moved > 2) {
-//                     paintStroke(x, y, px, py, color, 3 + moved * 0.3);
-//                 }
+//         const fistNow = isFist(landmarks);
+//         if (fistNow) {
+//              if (fistStartTime === null) {
+//                 fistStartTime = Date.now();
+//             } else if (Date.now() - fistStartTime > FIST_HOLD_MS) {
+//                 clearPaint();
+//                 fistStartTime = null; 
 //             }
-//             previousTips[tipIdx] = { x, y };
+//             return;
+//         } else {
+//             fistStartTime = null; 
+//         }
+
+//         const activeFingers = []; 
+
+//         FINGERS.forEach((finger, i) => {
+//             const up = isFingerUp(landmarks, finger);
+
+//             if (up) {
+//                 activeFingers.push(i);
+
+//                 const tip = landmarks[finger.tip];
+//                 // Mirror X (1 - tip.x) because webcam is flipped
+//                 const x = (1 - tip.x) * W;
+//                 const y = tip.y * H;
+
+//                 if (previousTips[finger.tip]) {
+//                     const { x: px, y: py } = previousTips[finger.tip];
+//                     const moved = Math.hypot(x - px, y - py);
+
+//                     // Only draw if finger actually moved
+//                     if (moved > 2) {
+//                         const brushSize = 3 + moved * 0.3;
+//                         paintStroke(x, y, px, py, finger.color, brushSize);
+//                     }
+//                 }
+
+//                 // Save position for next frame
+//                 previousTips[finger.tip] = { x, y };
+
+//             } else {
+//                 // Finger is down — delete its previous position
+//                 // This prevents a "snap line" when the finger comes back up
+//                 delete previousTips[finger.tip];
+//             }
 //         });
 //     }
-// }
-// animate();
+//     animate();
+
+function animate() {
+    requestAnimationFrame(animate); // keep looping
+
+    if (landmarks) {
+        const W = paintCanvas.width;
+        const H = paintCanvas.height;
+
+        FINGER_TIPS.forEach((tipIdx, i) => {
+            const lm    = landmarks[tipIdx];
+            const x     = (1 - lm.x) * W;
+            const y     = lm.y * H;
+            const color = FINGER_COLORS[i];
+
+            if (previousTips[tipIdx]) {
+                const { x: px, y: py } = previousTips[tipIdx];
+                const moved = Math.hypot(x - px, y - py);
+                if (moved > 2) {
+                    paintStroke(x, y, px, py, color, 3 + moved * 0.3);
+                }
+            }
+            previousTips[tipIdx] = { x, y };
+        });
+    }
+}
+animate();
 
 // other functions ----------------------------------------------------------
 function clearPaint(){
