@@ -194,32 +194,97 @@ function paintStroke(x,y,px,py,color,size){
     paintCtx.fillStyle =gradient;
     paintCtx.fill();
 }
-
 function animate() {
-    requestAnimationFrame(animate); // keep looping
+        requestAnimationFrame(animate);
 
-    if (landmarks) {
+        if (!landmarks) return; // no hand detected, skip everything
+
         const W = paintCanvas.width;
         const H = paintCanvas.height;
 
-        FINGER_TIPS.forEach((tipIdx, i) => {
-            const lm    = landmarks[tipIdx];
-            const x     = (1 - lm.x) * W;
-            const y     = lm.y * H;
-            const color = FINGER_COLORS[i];
+        // ── Step 1: Check for fist ──────────────────────────────────
+        const fistNow = isFist(landmarks);
 
-            if (previousTips[tipIdx]) {
-                const { x: px, y: py } = previousTips[tipIdx];
-                const moved = Math.hypot(x - px, y - py);
-                if (moved > 2) {
-                    paintStroke(x, y, px, py, color, 3 + moved * 0.3);
+        if (fistNow && !wasFist) {
+            // Only clear on the FIRST frame of fist — not every frame
+            // wasFist prevents clearing 60 times per second while fist is held
+            clearPaint();
+            flashFist();
+        }
+
+        wasFist = fistNow; // remember this frame's state for next frame
+
+        // If it's a fist, don't draw anything — return early
+        if (fistNow) {
+            updateLegend([]); // dim all finger dots in UI
+            return;
+        }
+
+        // ── Step 2 & 3: Check each finger and paint if up ───────────
+        const activeFingers = []; // track which are up for UI update
+
+        FINGERS.forEach((finger, i) => {
+            const up = isFingerUp(landmarks, finger);
+
+            if (up) {
+                activeFingers.push(i);
+
+                const tip = landmarks[finger.tip];
+                // Mirror X (1 - tip.x) because webcam is flipped
+                const x = (1 - tip.x) * W;
+                const y = tip.y * H;
+
+                // Only paint if we have a previous position for this finger
+                if (previousTips[finger.tip]) {
+                    const { x: px, y: py } = previousTips[finger.tip];
+                    const moved = Math.hypot(x - px, y - py);
+
+                    // Only draw if finger actually moved
+                    if (moved > 2) {
+                        const brushSize = 3 + moved * 0.3;
+                        paintStroke(x, y, px, py, finger.color, brushSize);
+                    }
                 }
+
+                // Save position for next frame
+                previousTips[finger.tip] = { x, y };
+
+            } else {
+                // Finger is down — delete its previous position
+                // This prevents a "snap line" when the finger comes back up
+                delete previousTips[finger.tip];
             }
-            previousTips[tipIdx] = { x, y };
         });
+
+        // ── Step 4: Update the legend UI ────────────────────────────
+        updateLegend(activeFingers);
     }
-}
-animate();
+    animate();
+// function animate() {
+//     requestAnimationFrame(animate); // keep looping
+
+//     if (landmarks) {
+//         const W = paintCanvas.width;
+//         const H = paintCanvas.height;
+
+//         FINGER_TIPS.forEach((tipIdx, i) => {
+//             const lm    = landmarks[tipIdx];
+//             const x     = (1 - lm.x) * W;
+//             const y     = lm.y * H;
+//             const color = FINGER_COLORS[i];
+
+//             if (previousTips[tipIdx]) {
+//                 const { x: px, y: py } = previousTips[tipIdx];
+//                 const moved = Math.hypot(x - px, y - py);
+//                 if (moved > 2) {
+//                     paintStroke(x, y, px, py, color, 3 + moved * 0.3);
+//                 }
+//             }
+//             previousTips[tipIdx] = { x, y };
+//         });
+//     }
+// }
+// animate();
 
 // other functions ----------------------------------------------------------
 function clearPaint(){
